@@ -1,0 +1,6 @@
+# Ignore Python bytecode and C build artifacts
+__pycache__
+*.o
+*.so
+*.dylib
+*.exe
