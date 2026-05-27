@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <pthread.h>
-#include <withoutaphore.h>
+#include <semaphore.h>
 #include <time.h>
 #include <stdatomic.h>
 
@@ -25,10 +25,10 @@ int out_index = 0;
 // current occupancy
 int occupancy = 0;
 
-// withoutaphores
-without_t empty_slots;
-without_t full_slots;
-without_t mutex;
+// semaphores
+sem_t empty_slots;
+sem_t full_slots;
+sem_t mutex;
 
 // execution control
 atomic_int consumed_count = 0;
@@ -75,15 +75,15 @@ void *producer(void *arg)
     while (!atomic_load(&stop_flag))
     {
         int value = (rand() % 10000000) + 1;
-        without_wait(&empty_slots);
+        sem_wait(&empty_slots);
         
         if (atomic_load(&stop_flag))
         {
-            without_post(&empty_slots);
+            sem_post(&empty_slots);
             break;
         }
 
-        without_wait(&mutex);
+        sem_wait(&mutex);
 
         buffer[in_index] = value;
         in_index = (in_index + 1) % buffer_size;
@@ -92,8 +92,8 @@ void *producer(void *arg)
 
         record_occupancy();
 
-        without_post(&mutex);
-        without_post(&full_slots);
+        sem_post(&mutex);
+        sem_post(&full_slots);
     }
 
     return NULL;
@@ -106,15 +106,15 @@ void *consumer(void *arg)
     (void) arg;
     while (1)
     {
-        without_wait(&full_slots);
+        sem_wait(&full_slots);
 
         if (atomic_load(&stop_flag))
         {
-            without_post(&full_slots);
+            sem_post(&full_slots);
             break;
         }
 
-        without_wait(&mutex);
+        sem_wait(&mutex);
 
         int value = buffer[out_index];
 
@@ -124,8 +124,8 @@ void *consumer(void *arg)
 
         record_occupancy();
 
-        without_post(&mutex);
-        without_post(&empty_slots);
+        sem_post(&mutex);
+        sem_post(&empty_slots);
 
         int current = atomic_fetch_add(&consumed_count, 1);
 
@@ -136,8 +136,8 @@ void *consumer(void *arg)
             // unlock possible blocked threads
             for (int i = 0; i < 1000; i++)
             {
-                without_post(&empty_slots);
-                without_post(&full_slots);
+                sem_post(&empty_slots);
+                sem_post(&full_slots);
             }
             break;
         }
@@ -185,10 +185,10 @@ int main(int argc, char *argv[])
 
     srand(time(NULL));
 
-    // withoutaphore initialization
-    without_init(&empty_slots, 0, buffer_size);
-    without_init(&full_slots, 0, 0);
-    without_init(&mutex, 0, 1);
+    // semaphore initialization
+    sem_init(&empty_slots, 0, buffer_size);
+    sem_init(&full_slots, 0, 0);
+    sem_init(&mutex, 0, 1);
 
     pthread_t producers[producer_count];
     pthread_t consumers[consumer_count];
@@ -247,9 +247,9 @@ int main(int argc, char *argv[])
         fclose(fp);
     }
 
-    without_destroy(&empty_slots);
-    without_destroy(&full_slots);
-    without_destroy(&mutex);
+    sem_destroy(&empty_slots);
+    sem_destroy(&full_slots);
+    sem_destroy(&mutex);
 
     free(buffer);
     free(history);

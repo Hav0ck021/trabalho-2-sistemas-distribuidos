@@ -4,3 +4,7 @@ __pycache__
 *.so
 *.dylib
 *.exe
+
+# Ignore generated images and CSV files
+*.png
+*.csv
